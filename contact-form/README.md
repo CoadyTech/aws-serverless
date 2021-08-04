@@ -1,6 +1,6 @@
 <br />
 <p align="center">
-  <h3 align="center">Serverless Contact Form</h3>
+  <h3 align="center"><h1>Serverless Contact Form</h1>
 
   <p align="center">
     A serverless contact form built with AWS Lambda, API Gateway and SES.
@@ -8,10 +8,10 @@
 </p>
 
 
-<!-- ABOUT THE PROJECT -->
-## About The Project
+<!-- ABOUT -->
+## About
 
-This is an example implementation of a 'serverless' contact form, for use on the AWS Cloud. It's great for static websites that just need that extra bit of functionality.  
+This is an example implementation of a 'serverless' contact form on the AWS Cloud. It's great for static websites that just need that extra bit of functionality.  
 
 Why serverless? Here's why:
 * No need to setup, configure or maintain a web server and associated scripting languages (e.g. PHP, Node.js, etc.).
@@ -27,15 +27,16 @@ Distributed under the MIT License.
 <!-- CONTACT -->
 ## Contact
 
-Your Name - [@CoadyTech](https://twitter.com/CoadyTech) - will {at} coady.tech
+Get in touch!
 
-Project Link: [https://github.com/CoadyTech/AWS-Serverless/contact-form](https://github.com/CoadyTech/AWS-Serverless/contact-form)
-
+ - :email: will {at} coady.tech
+ - :bird: [Twitter](https://twitter.com/CoadyTech)
+ - :computer: [Blog](https://coady.tech/)
 
 
 <!-- ACKNOWLEDGEMENTS -->
 ## Acknowledgements
-* [Cody Seibert - Base Contact Form & JavaScript](https://github.com/codyseibert/youtube/tree/master/js-contact-form-validation)
+* [Cody Seibert - Base Contact Form & JavaScript validation logic](https://github.com/codyseibert/youtube/tree/master/js-contact-form-validation)
 
 
 
