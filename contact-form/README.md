@@ -1,6 +1,6 @@
 <br />
 <p align="center">
-  <h1 align="center"><Serverless Contact Form</h1>
+  <h1 align="center">Serverless Contact Form</h1>
 
   <p align="center">
     A serverless contact form built with AWS Lambda, API Gateway and SES.
