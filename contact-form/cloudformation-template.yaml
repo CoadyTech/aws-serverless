@@ -1,11 +1,12 @@
-# AWS Serverless Contact Form CloudFormation Demo
+# AWS Serverless Contact Form - CloudFormation Template
+# Provided as an example only. Not all best practices have been followed.
 # Distributed under the MIT License
-# Setup instructions: https://coady.tech/aws-serverless-contact
+# Setup instructions: https://coady.tech/aws-serverless-contact-form/
 
 AWSTemplateFormatVersion: '2010-09-09'
 Metadata: 
   License: MIT
-Description: 'Demo template by CoadyTech for a serverless contact form'
+Description: 'Demo of a serverless contact form on the AWS Cloud. Follow the setup guide at https://coady.tech/aws-serverless-contact-form/.'
 Resources:
   S3Bucket:
     Type: AWS::S3::Bucket
