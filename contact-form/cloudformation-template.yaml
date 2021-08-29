@@ -1,1 +1,109 @@
-# Placeholder
+# AWS Serverless Contact Form CloudFormation Demo
+# Distributed under the MIT License
+# Setup instructions: https://coady.tech/aws-serverless-contact
+
+AWSTemplateFormatVersion: '2010-09-09'
+Metadata: 
+  License: MIT
+Description: 'Demo template by CoadyTech for a serverless contact form'
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: PublicRead
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+    DeletionPolicy: Retain
+  LambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+        AssumeRolePolicyDocument:
+            Statement:
+                - Effect: Allow
+                  Principal:
+                    Service:
+                        - lambda.amazonaws.com
+                  Action: "sts:AssumeRole"
+        Path: /
+        Policies:
+            # Maybe this is for the API Gateway invoke?
+            - PolicyName: lambda
+              PolicyDocument:
+                Statement:
+                    Effect: Allow
+                    Action:
+                        - "lambda:InvokeFunction"
+                    Resource: "*"
+            # SES Policy
+            - PolicyName: sendEmails
+              PolicyDocument:
+                Statement:
+                    Effect: Allow
+                    Action:
+                        - "ses:SendEmail"
+                        - "ses:SendRawEmail"
+                    Resource: "*"
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.6
+      Timeout: 5
+      Handler: index.handler
+      Role: !GetAtt LambdaFunctionRole.Arn
+      Code:
+        ZipFile:
+          !Sub
+            - |-
+              var AWS = require('aws-sdk');
+              var ses = new AWS.SES();
+              
+              var RECEIVER = 'demo@example.com';
+              var SENDER = 'demo@example.com';
+
+              var response = {
+              "isBase64Encoded": false,
+              "headers": { 'Content-Type': 'application/json'},
+              "statusCode": 200,
+              "body": "{\"result\": \"Success.\"}"
+              };
+
+              exports.handler = function (event, context) {
+                  console.log('Received event:', event);
+                  sendEmail(event, function (err, data) {
+                      context.done(err, null);
+                  });
+              };
+              
+              function sendEmail (event, done) {
+                  var params = {
+                      Destination: {
+                          ToAddresses: [
+                              RECEIVER
+                          ]
+                      },
+                      Message: {
+                          Body: {
+                              Text: {
+                                  Data: 'name: ' + event.name + '\nphone: ' + event.phone + '\nemail: ' + event.email + '\ndesc: ' + event.desc,
+                                  Charset: 'UTF-8'
+                              }
+                          },
+                          Subject: {
+                              Data: 'Website Referral Form: ' + event.name,
+                              Charset: 'UTF-8'
+                          }
+                      },
+                      Source: SENDER
+                  };
+                  ses.sendEmail(params, done);
+              }            
+            -
+              lambda_function_role_arn: !Ref LambdaFunctionRole
+Outputs:
+  WebsiteURL:
+    Value: !GetAtt [S3Bucket, WebsiteURL]
+    Description: URL for website hosted on S3
+  S3BucketSecureURL:
+    Value: !Join ['', ['https://', !GetAtt [S3Bucket, DomainName]]]
+    Description: Name of S3 bucket to hold website content
