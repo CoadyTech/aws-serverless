@@ -102,9 +102,16 @@ Resources:
             -
               lambda_function_role_arn: !Ref LambdaFunctionRole
 Outputs:
+  S3BucketName:
+    Value: !Ref S3Bucket
+    Description: Name of the S3 bucket.
+
   WebsiteURL:
-    Value: !GetAtt [S3Bucket, WebsiteURL]
-    Description: URL for website hosted on S3
-  S3BucketSecureURL:
-    Value: !Join ['', ['https://', !GetAtt [S3Bucket, DomainName]]]
-    Description: Name of S3 bucket to hold website content
+    Value: !GetAtt 
+      - S3Bucket
+      - WebsiteURL
+    Description: Website URL of the S3 bucket hosting the contact form.
+
+  APIGatewayURL:
+    Value: !Sub 'https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiGatewayStage}/${ApiGatewayResource}'
+    Description: URL of the REST API. This will be used in the contact.js file.
