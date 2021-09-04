@@ -16,91 +16,220 @@ Resources:
         IndexDocument: index.html
         ErrorDocument: error.html
     DeletionPolicy: Retain
+  
+  S3BucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - 's3:GetObject'
+            Effect: Allow
+            Resource: !Join
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref S3Bucket
+                - /*
+            Principal: '*'
+
   LambdaFunctionRole:
-    Type: AWS::IAM::Role
-    Properties:
-        AssumeRolePolicyDocument:
-            Statement:
-                - Effect: Allow
-                  Principal:
-                    Service:
-                        - lambda.amazonaws.com
-                  Action: "sts:AssumeRole"
-        Path: /
-        Policies:
-            # Maybe this is for the API Gateway invoke?
-            - PolicyName: lambda
-              PolicyDocument:
-                Statement:
-                    Effect: Allow
-                    Action:
-                        - "lambda:InvokeFunction"
-                    Resource: "*"
-            # SES Policy
-            - PolicyName: sendEmails
-              PolicyDocument:
-                Statement:
-                    Effect: Allow
-                    Action:
-                        - "ses:SendEmail"
-                        - "ses:SendRawEmail"
-                    Resource: "*"
+      Type: AWS::IAM::Role
+      Properties:
+          AssumeRolePolicyDocument:
+              Statement:
+                  - Effect: Allow
+                    Principal:
+                      Service:
+                          - lambda.amazonaws.com
+                    Action: "sts:AssumeRole"
+          Path: /
+          Policies:
+              - PolicyName: lambda
+                PolicyDocument:
+                  Statement:
+                      Effect: Allow
+                      Action:
+                          - "lambda:InvokeFunction"
+                      Resource: "*"
+              - PolicyName: sendEmails
+                PolicyDocument:
+                  Statement:
+                      Effect: Allow
+                      Action:
+                          - "ses:SendEmail"
+                          - "ses:SendRawEmail"
+                      Resource: "*"
+  
   LambdaFunction:
-    Type: AWS::Lambda::Function
+          Type: AWS::Lambda::Function
+          Properties:
+            Runtime: nodejs14.x
+            Timeout: 5
+            Handler: index.handler
+            Role: !GetAtt LambdaFunctionRole.Arn
+            Code:
+              ZipFile:
+                !Sub
+                  - |-
+                    var AWS = require('aws-sdk');
+                    var ses = new AWS.SES();
+                    
+                    var RECEIVER = 'demo@example.com';
+                    var SENDER = 'demo@example.com';
+
+                    var response = {
+                    "isBase64Encoded": false,
+                    "headers": { 'Content-Type': 'application/json'},
+                    "statusCode": 200,
+                    "body": "{\"result\": \"Success.\"}"
+                    };
+
+                    exports.handler = function (event, context) {
+                        console.log('Received event:', event);
+                        sendEmail(event, function (err, data) {
+                            context.done(err, null);
+                        });
+                    };
+                    
+                    function sendEmail (event, done) {
+                        var params = {
+                            Destination: {
+                                ToAddresses: [
+                                    RECEIVER
+                                ]
+                            },
+                            Message: {
+                                Body: {
+                                    Text: {
+                                        Data: 'Name: ' + event.name + '\nPhone: ' + event.phone + '\nEmail: ' + event.email + '\nMessage: ' + event.message,
+                                        Charset: 'UTF-8'
+                                    }
+                                },
+                                Subject: {
+                                    Data: 'Website Referral Form - Message from ' + event.name,
+                                    Charset: 'UTF-8'
+                                }
+                            },
+                            Source: SENDER
+                        };
+                        ses.sendEmail(params, done);
+                    }            
+                  -
+                    lambda_function_role_arn: !Ref LambdaFunctionRole
+
+  lambdaApiGatewayInvoke:
+    Type: AWS::Lambda::Permission
     Properties:
-      Runtime: python3.6
-      Timeout: 5
-      Handler: index.handler
-      Role: !GetAtt LambdaFunctionRole.Arn
-      Code:
-        ZipFile:
-          !Sub
-            - |-
-              var AWS = require('aws-sdk');
-              var ses = new AWS.SES();
-              
-              var RECEIVER = 'demo@example.com';
-              var SENDER = 'demo@example.com';
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt LambdaFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Join [
+        "", [
+          "arn:aws:execute-api:", 
+          {"Ref": "AWS::Region"}, ":", 
+          {"Ref": "AWS::AccountId"}, ":", 
+          !Ref ApiGatewayRestApi, "/*/*"
+          ]
+        ] 
 
-              var response = {
-              "isBase64Encoded": false,
-              "headers": { 'Content-Type': 'application/json'},
-              "statusCode": 200,
-              "body": "{\"result\": \"Success.\"}"
-              };
+  ApiGatewayRestApi:
+      Type: "AWS::ApiGateway::RestApi"
+      Properties:
+          Name: !Ref LambdaFunction
+          ApiKeySourceType: "HEADER"
+          EndpointConfiguration: 
+              Types: 
+                - "REGIONAL"
 
-              exports.handler = function (event, context) {
-                  console.log('Received event:', event);
-                  sendEmail(event, function (err, data) {
-                      context.done(err, null);
-                  });
-              };
-              
-              function sendEmail (event, done) {
-                  var params = {
-                      Destination: {
-                          ToAddresses: [
-                              RECEIVER
-                          ]
-                      },
-                      Message: {
-                          Body: {
-                              Text: {
-                                  Data: 'name: ' + event.name + '\nphone: ' + event.phone + '\nemail: ' + event.email + '\ndesc: ' + event.desc,
-                                  Charset: 'UTF-8'
-                              }
-                          },
-                          Subject: {
-                              Data: 'Website Referral Form: ' + event.name,
-                              Charset: 'UTF-8'
-                          }
-                      },
-                      Source: SENDER
-                  };
-                  ses.sendEmail(params, done);
-              }            
-            -
-              lambda_function_role_arn: !Ref LambdaFunctionRole
+  ApiGatewayResource:
+    Type: 'AWS::ApiGateway::Resource'
+    DependsOn: ApiGatewayRestApi
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      ParentId: !GetAtt 
+        - ApiGatewayRestApi
+        - RootResourceId
+      PathPart: contact
+
+  ApiGatewayMethod2:
+      Type: "AWS::ApiGateway::Method"
+      DependsOn: ApiGatewayResource
+      Properties:
+          RestApiId: !Ref ApiGatewayRestApi
+          ResourceId: !Ref ApiGatewayResource
+          HttpMethod: "POST"
+          AuthorizationType: "NONE"
+          ApiKeyRequired: false
+          Integration:
+            IntegrationHttpMethod: POST
+            Type: AWS
+            Uri: !Sub
+              - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+              - lambdaArn: !GetAtt LambdaFunction.Arn
+            IntegrationResponses:
+              -
+                StatusCode: "200"
+          MethodResponses: 
+            - 
+              ResponseModels: 
+                  "application/json": "Empty"
+              ResponseParameters: 
+                  "method.response.header.Access-Control-Allow-Headers": false
+                  "method.response.header.Access-Control-Allow-Methods": false
+                  "method.response.header.Access-Control-Allow-Origin": false
+              StatusCode: "200"
+
+  ApiGatewayMethod:
+      Type: "AWS::ApiGateway::Method"
+      DependsOn: ApiGatewayMethod2
+      Properties:
+          RestApiId: !Ref ApiGatewayRestApi
+          ResourceId: !Ref ApiGatewayResource
+          HttpMethod: "OPTIONS"
+          AuthorizationType: "NONE"
+          ApiKeyRequired: false
+          RequestParameters: {}
+          MethodResponses: 
+            - 
+              ResponseModels: 
+                  "application/json": "Empty"
+              ResponseParameters: 
+                  "method.response.header.Access-Control-Allow-Headers": false
+                  "method.response.header.Access-Control-Allow-Methods": false
+                  "method.response.header.Access-Control-Allow-Origin": false
+              StatusCode: "200"
+          Integration: 
+              CacheNamespace: !Ref ApiGatewayResource
+              IntegrationResponses: 
+                - 
+                  ResponseParameters: 
+                      "method.response.header.Access-Control-Allow-Headers": "'*'"
+                      "method.response.header.Access-Control-Allow-Methods": "'OPTIONS,POST'"
+                      "method.response.header.Access-Control-Allow-Origin": "'*'"
+                  ResponseTemplates: {}
+                  SelectionPattern: ""
+                  StatusCode: "200"
+              PassthroughBehavior: "WHEN_NO_MATCH"
+              RequestTemplates: 
+                  "application/json": "{\"statusCode\": 200}"
+              TimeoutInMillis: 29000
+              Type: "MOCK"
+
+  ApiGatewayDeployment:
+      Type: "AWS::ApiGateway::Deployment"
+      DependsOn: ApiGatewayMethod
+      Properties:
+          RestApiId: !Ref ApiGatewayRestApi
+
+  ApiGatewayStage:
+      Type: "AWS::ApiGateway::Stage"
+      DependsOn: ApiGatewayDeployment
+      Properties:
+          StageName: "prod"
+          DeploymentId: !Ref ApiGatewayDeployment
+          RestApiId: !Ref ApiGatewayRestApi
 Outputs:
   S3BucketName:
     Value: !Ref S3Bucket
@@ -113,5 +242,9 @@ Outputs:
     Description: Website URL of the S3 bucket hosting the contact form.
 
   APIGatewayURL:
-    Value: !Sub 'https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiGatewayStage}/${ApiGatewayResource}'
+    Value: !Sub 'https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiGatewayStage}/contact'
     Description: URL of the REST API. This will be used in the contact.js file.
+  
+  LambdaName:
+    Value: !Ref LambdaFunction
+    Description: Name of the Lambda function.
